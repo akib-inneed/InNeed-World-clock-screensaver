@@ -135,6 +135,8 @@
     font-family:'IBM Plex Mono', monospace;
     font-variant-numeric: tabular-nums;
     line-height:1;
+    white-space:nowrap;
+    max-width:100%;
   }
 
   .time-main{
@@ -338,6 +340,44 @@
   }
   updateClocks();
   setInterval(updateClocks, 1000);
+
+  // Safety net: at some viewport widths/aspect ratios the CSS clamp() sizing can
+  // still be wider than the column it sits in. Measure actual rendered width vs
+  // the available column width and scale down only as much as needed to fit —
+  // and scale back up if the window grows again.
+  function fitTimeRow(name){
+    const cityEl = document.getElementById('city'+name);
+    const rowEl = cityEl.querySelector('.time-row');
+    const mainEl = document.getElementById('time'+name);
+    const ampmEl = document.getElementById('ampm'+name);
+    if(!cityEl || !rowEl || !mainEl || !ampmEl) return;
+
+    // Clear any previous override so the CSS clamp recomputes fresh for the current viewport
+    mainEl.style.fontSize = '';
+    ampmEl.style.fontSize = '';
+
+    const naturalMain = parseFloat(getComputedStyle(mainEl).fontSize);
+    const naturalAmpm = parseFloat(getComputedStyle(ampmEl).fontSize);
+    const available = cityEl.clientWidth * 0.92;
+    const natural = rowEl.scrollWidth;
+
+    if(natural > available && natural > 0){
+      const ratio = available / natural;
+      mainEl.style.fontSize = (naturalMain * ratio) + 'px';
+      ampmEl.style.fontSize = (naturalAmpm * ratio) + 'px';
+    }
+  }
+
+  function fitAllClocks(){
+    fitTimeRow('Dhaka');
+    fitTimeRow('Atlanta');
+  }
+
+  window.addEventListener('resize', fitAllClocks);
+  window.addEventListener('load', () => setTimeout(fitAllClocks, 50));
+  document.fonts && document.fonts.ready && document.fonts.ready.then(fitAllClocks);
+  setTimeout(fitAllClocks, 300);
+  fitAllClocks();
 
   // ---------- Ambient weather background effects ----------
   class WeatherFX{
@@ -547,7 +587,7 @@
   // transition, which can leave the weather canvases sized to the old viewport.
   // Force a re-measure a beat after the transition settles, just in case.
   document.addEventListener('fullscreenchange', () => {
-    setTimeout(() => { FX.Dhaka.resize(); FX.Atlanta.resize(); }, 200);
+    setTimeout(() => { FX.Dhaka.resize(); FX.Atlanta.resize(); fitAllClocks(); }, 200);
   });
 
   // ---------- Gentle periodic shift to reduce OLED/LED burn-in ----------
